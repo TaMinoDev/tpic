@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convert your Pic into tpic</title>
+    <style>
+        canvas {
+            height: 250px;
+            width: auto;
+            image-rendering: crisp-edges;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="input">
+    <div id="output"></div>
+    <canvas id="canvas"></canvas>
+    <script>
+        const input = document.getElementById('input');
+        const output = document.getElementById('output');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        let r = '';
+        let file = '';
+        let data = {
+            map: [],
+            type: '',
+            colors: [],
+            w: 0,
+            h: 0,
+        }
+
+        input.oninput = async function(e) {
+            console.log(e);
+
+            const reader = new FileReader();
+            reader.onload = async function (i) {
+                r = await i.target.result;
+                output.innerText = r;
+            }
+            await reader.readAsText(input.files[0]);
+            setTimeout(grab,100);
+        }
+
+        function grab() {
+            if(output.innerText.length > 5) {
+                try {
+                    let r = output.innerText.replace(/\s+/g, '').split(',');
+                    data = {
+                        type: r[0].replace('t=',''),
+                        c: JSON.parse(r[1].replace('c=','').replace(/(#[0-9,a-f,A-F]+)/g,'"$1"').split('""').join('","')),
+                        w: Number(r[2].replace('w=','')),
+                        h: Number(r[3].replace('h=','')),
+                        m: JSON.parse(r[4].replace('m=','').replaceAll('|',','))
+                    }
+                } catch (error) {
+                    console.error("Fehler beim erfassen der Metadaten - " + error);
+                }
+            } else console.log('empty');
+            if(data.type === 'tpic') {
+                draw();
+            } else {
+                convert();
+            }
+        }
+
+        function draw() {
+            canvas.width = data.w;
+            canvas.height = data.h;
+            for(let x = 0; x <= data.w-1; x++) {
+                for(let y = 0; y <= data.h-1; y++) {
+                    ctx.fillStyle = data.c[Number(data.m[y][x])];
+                    console.log([x,y,data.m[y][x]]);
+                    ctx.fillRect(x,y,1,1);
+                }
+            }
+        }
+
+        async function convert() {
+            const reader = new FileReader();
+            reader.onload = async function (i) {
+                async function loader() {
+                    file = await i.target.result;
+                    output.innerText = file;
+                }
+                loader().then(() => {
+                    img.crossOrigin = 'Anonymous'; 
+                    img.src = file;
+                });
+            }
+            await reader.readAsDataURL(input.files[0]);
+
+            const img = await new Image();
+
+            img.onload = async function() {
+                await img.complete === true;
+                canvas.width = img.width;
+                canvas.height = img.height;
+                await ctx.drawImage(img, 0, 0);
+                grabColors();
+            };
+
+        }
+
+        function grabColors() {
+            let map = [];
+            let colors = [];
+            let w = 0;
+            let h = 0;
+            for(let x = 0; x <= canvas.width-1; x++) {
+                let result = [];
+                w++;
+                for(let y = 0; y <= canvas.height-1; y++) {
+                    h++;
+                    let color = getPixelHex(y,x);
+                    result.push(color);
+                    colors.push(color);
+                    colors = [...new Set(colors)];
+                }
+                map.push(result);
+            }
+            console.log(map);
+            map = map.map(row => row.map(px => colors.indexOf(px)));
+            let string = `type=tpic,c=${JSON.stringify(colors).replaceAll('","','').replaceAll('"','')},w=${w},h=${h},m=${JSON.stringify(map).replaceAll(',','|').replaceAll('"','')}`;
+            output.innerText = string;
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + [r, g, b].map(x => {
+            const hex = x.toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+
+        function getPixelHex(x, y) {
+            const pixelData = ctx.getImageData(x, y, 1, 1).data;
+            const [r, g, b] = pixelData;
+            return rgbToHex(r, g, b);
+        }
+    </script>
+</body>
+</html>
