@@ -1,11 +1,12 @@
 # tpic
 TPic is an textbased file format for Pictures such as PNG, but it's got rid of the Metadata noone cares about. It's readable in plaintext, you don't need the tpic suffix and it's an fun little Project
 ---
-## JS/CSS
-The Design is questionable but in my tests it's up to 700 bytes smaller than JPEG and 20 bytes smaler than PNG... I know, whats insanly less space XD
+## JS/HTML
+It's up to 700 bytes smaller than JPEG and 20 bytes smaler than PNG... I know, whats insanly less space XD
 
 You can simply upload a Picture and the Program will find out if its an Picture or an TPic File you uploaded and will display it anyways.
 The whole tpic-script will be printed as soon as the Picture is converted.
+And since the 21th November you can click on "Generate Table" to make Pixelart to tpics simmilar to one of my older Projects "full-page-pixel".
 
 It's very easy to use and I would recommend that you use that to transport pictures without giving out your metadatas or something like that.
 
