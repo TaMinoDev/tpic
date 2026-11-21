@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convert your Pic into tpic</title>
+    <style>
+        html {
+            background: linear-gradient(180deg,black,white);
+            padding: 5vw;
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            height: 100vh;
+            transition: 5s;
+        }
+    
+        body {
+            align-items: baseline;
+            justify-content: center;
+            font-family: Arial, Helvetica, sans-serif;
+            border-radius: 10px;
+            padding: 15px;
+            /* display: flex; */
+            background-color: rgba(255, 255, 255, 0.25);
+            scroll-behavior: smooth;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            height: 100vh;
+        }
+    
+        canvas {
+            border: 1px solid black;
+            width: auto;
+            height: auto;
+            min-width: 50px;
+            min-height: 50px;
+            image-rendering: crisp-edges;
+            background-color: white;
+        }
+    
+        input:not([id="output"]) {
+            box-sizing: content-box;
+            display: flex;
+            width: min-content;
+            min-width: 15px;
+            padding: 5px;
+            border-radius: 8px;
+            border: 1px solid black;
+            outline: none;
+            margin-bottom: 5px;
+            margin-top: 5px;
+        }
+    
+        td {
+            border: 1px solid black;
+            width: 15px;
+            height: 15px;
+        }
+    
+        table {
+            border-spacing: 0px;
+        }
+
+        #output {
+            max-width: 50%;
+            max-height: 20px;
+            overflow: scroll;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="input">
+    <input id="output"></input>
+    <canvas id="canvas"></canvas>
+    <table>
+        <tbody>
+
+        </tbody>
+    </table>
+    <div id="inputContainer">
+        <input id="widthInput" type="number" value="5" placeholder="width in px">
+        <input id="heightInput" type="number" value="5" placeholder="height in px">
+        <input id="colorInput" type="color" value="#000000">
+        <button onclick="drawTable()">Generate Table</button>
+        <button style="display: none;" id="convertBtn" onclick="tableToTpic()">Make it a tpic</button>
+    </div>
+    <script>
+        const input = document.getElementById('input');
+        const output = document.getElementById('output');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        let r = '';
+        let file = '';
+        let data = {
+            map: [],
+            type: '',
+            colors: [],
+            w: 0,
+            h: 0,
+        }
+
+        input.oninput = async function(e) {
+            console.log(e);
+
+            const reader = new FileReader();
+            reader.onload = async function (i) {
+                r = await i.target.result;
+                output.value = r;
+            }
+            await reader.readAsText(input.files[0]);
+            setTimeout(grab,100);
+        }
+
+        function grab() {
+            if(output.value.length > 5) {
+                try {
+                    let r = output.value.replace(/\s+/g, '').split(',');
+                    data = {
+                        type: r[0].replace('t=',''),
+                        c: JSON.parse(r[1].replace('c=','').replace(/(#[0-9,a-f,A-F]+)/g,'"$1"').split('""').join('","')),
+                        w: Number(r[2].replace('w=','')),
+                        h: Number(r[3].replace('h=','')),
+                        m: JSON.parse(r[4].replace('m=','').replaceAll('|',','))
+                    }
+                } catch (error) {
+                    console.error("Fehler beim erfassen der Metadaten - " + error);
+                    console.log('Fallbackmode => Assuming this is not a tpic => converting it into tpic and showning on screen')
+                    convert();
+                    draw();
+                }
+            } else console.log('empty');
+            if(data.type === 'tpic') {
+                draw();
+            } else {
+                convert();
+            }
+        }
+
+        function draw() {
+            canvas.width = data.w;
+            canvas.height = data.h;
+            for(let x = 0; x <= data.w-1; x++) {
+                for(let y = 0; y <= data.h-1; y++) {
+                    ctx.fillStyle = data.c[Number(data.m[y][x])];
+                    console.log([x,y,data.m[y][x]]);
+                    ctx.fillRect(x,y,1,1);
+                }
+            }
+        }
+
+        async function convert() {
+            const reader = new FileReader();
+            reader.onload = async function (i) {
+                async function loader() {
+                    file = await i.target.result;
+                    output.value = file;
+                }
+                loader().then(() => {
+                    img.crossOrigin = 'Anonymous'; 
+                    img.src = file;
+                });
+            }
+            await reader.readAsDataURL(input.files[0]);
+
+            const img = await new Image();
+
+            img.onload = async function() {
+                await img.complete === true;
+                canvas.width = img.width;
+                canvas.height = img.height;
+                await ctx.drawImage(img, 0, 0);
+                grabColors();
+            };
+
+        }
+
+        function grabColors() {
+            let map = [];
+            let colors = [];
+            let w = 0;
+            let h = 0;
+            for(let x = 0; x <= canvas.width-1; x++) {
+                let result = [];
+                w++;
+                for(let y = 0; y <= canvas.height-1; y++) {
+                    h++;
+                    let color = getPixelHex(y,x);
+                    result.push(color);
+                    colors.push(color);
+                    colors = [...new Set(colors)];
+                }
+                map.push(result);
+            }
+            console.log(map);
+            map = map.map(row => row.map(px => colors.indexOf(px)));
+            let string = `type=tpic,c=${JSON.stringify(colors).replaceAll('","','').replaceAll('"','')},w=${w},h=${h},m=${JSON.stringify(map).replaceAll(',','|').replaceAll('"','')}`;
+            output.value = string;
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + [r, g, b].map(x => {
+            const hex = x.toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+            }).join('');
+        }
+
+        function getElementHexColor(element, property = 'background-color') {
+            const computedColor = window.getComputedStyle(element).getPropertyValue(property);
+
+            const rgbMatch = computedColor.match(/\d+/g);
+            if (!rgbMatch) return null;
+
+            const r = parseInt(rgbMatch[0], 10).toString(16).padStart(2, '0');
+            const g = parseInt(rgbMatch[1], 10).toString(16).padStart(2, '0');
+            const b = parseInt(rgbMatch[2], 10).toString(16).padStart(2, '0');
+
+            return `#${r}${g}${b}`.toUpperCase();
+        }
+
+        function getPixelHex(x, y) {
+            const pixelData = ctx.getImageData(x, y, 1, 1).data;
+            const [r, g, b] = pixelData;
+            return rgbToHex(r, g, b);
+        }
+
+        function drawTable() {
+            const mx = document.getElementById('widthInput').value;
+            const my = document.getElementById('heightInput').value;
+            const table = document.querySelector('tbody');
+
+            table.innerHTML = '';
+            document.querySelector('#convertBtn').style.display = 'block';
+
+            for(let x = 1; x <= mx; x++) {
+                let row = '';
+                for(let y = 1; y <= my; y++) {
+                    row += '<td onclick="colorIn(this)"></td>';
+                }
+                row = '<tr>' + row + '</tr>';
+                table.innerHTML += row;
+            }
+        }
+
+        function colorIn(element) {
+            const color = document.getElementById('colorInput').value;
+            element.style.backgroundColor = color;
+        }
+
+        function tableToTpic() {
+            let map = [];
+            let colors = [];
+            let w = 0;
+            let h = 0;
+            const table = document.querySelector('table');
+            for(let x = 0; x <= table.rows.length-1; x++) {
+                let result = [];
+                for(let y = 0; y <= table.rows[0].cells.length-1; y++) {
+                    let color = getElementHexColor(table.rows[x].cells[y],'background-color');
+
+                    if(color === null || color === '') {
+                        color = '#00000000';
+                    }
+                    console.log(color)
+                    result.push(color);
+                    colors.push(color);
+                    colors = [...new Set(colors)];
+                }
+                map.push(result);
+            }
+            w = map[0].length;
+            h = map.length;
+            console.log(map);
+            map = map.map(row => row.map(px => colors.indexOf(px)));
+            let string = `type=tpic,c=${JSON.stringify(colors).replaceAll('","','').replaceAll('"','')},w=${w},h=${h},m=${JSON.stringify(map).replaceAll(',','|').replaceAll('"','')}`;
+            output.value = string;
+            let r = output.value.replace(/\s+/g, '').split(',');
+            data = {
+                type: "tpic",
+                c: colors,
+                w: w,
+                h: h,
+                m: map
+            }
+            draw();
+        }
+
+        function parseRgb(colorString) {
+            const matches = colorString.match(/[\d.]+/g);
+            if (!matches || matches.length < 3) {
+                return null;
+            }
+            const [r, g, b, a = 1] = matches.map(Number);
+            return [r, g, b, a];
+        }
+    </script>
+</body>
+</html>
